@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel=icon href="data:,">
+<style>
+  /* Mini reset. */
+  html { box-sizing: border-box; }
+  *, :before, :after { box-sizing: inherit; padding: 0; margin: 0; }
+
+  /* För formuläret. */
+  form { margin: 1rem 0; }
+  input[type="range"] { vertical-align: top; }
+
+  /* Sidlayout. */
+  div[id^="wrap-"] {
+    width: 50vw;
+    height: 100vh;
+    position: fixed;
+    max-height: 100vh;
+    overflow: auto;
+    padding: .75rem 1rem;
+  }
+  div#wrap-video { left: 0; }
+  div#wrap-annot { right: 0; }
+
+  /* Annoteringsfältet. */
+  #annot {
+    position: relative;
+    background: #ccf;
+    height: 100vh; /* höjden sätts oxå i javascript nedan */
+  }
+
+  /* Enskild glosa i annoteringsfältet. */
+  #annot > div {
+    position: absolute;
+    border-radius: 4px;
+    background: #88f;
+    border: 2px solid #0008;
+    padding: .125rem .25rem;
+    cursor: pointer;
+  }
+  /* Håll mus ovanför annotering för att få den att hamna överst. */
+  #annot > div:hover {
+    z-index: 1;
+    background: #aaf;        /* ljusare backgrunds */
+    border: 2px solid #0006; /* ljusare kant */
+  }
+</style>
+<body>
+  <div id=wrap-video>
+    <div style="background:#000;width:640px;height:400px;color:#fff">VIDEO</div>
+    <form>
+      Annotering:
+      <select name=file onchange="loadAnnotations(file.value)">
+        <option value="gloss_lh.txt">Gloss LH</option>
+        <option value="gloss_rh.txt">Gloss RH</option>
+      </select>
+      <br>Scale:
+      <input name=scale type=range min=10 max=250 value=50
+        oninput="scaleOut.value = rescale(scale.value)">
+      <output id=scaleOut for=scale></output>
+    </form>
+  </div>
+  <div id=wrap-annot>
+    <div id=annot></div>
+  </div>
+</body>
+<script src="jquery-3.6.0.slim.js"></script>
+<script>
+  // Inställningar.
+  let scaleFactor = 50
+  const minGlossHeight = 24
+
+  // Data.
+  let annotations = []
+  const $annotWrap = $('#wrap-annot')               // jquery
+  const $annot = $('#annot')                        // jquery
+  //const $annot = document.querySelector('#annot') // vanilj javascript
+
+  // '$' först i variabelnamn = det är ett HTML-element
+  // '_' först i variabelnamn = det är en variabel som inte används
+  function timeToSeconds(time) {
+    const [minute, second] = time.split(':')
+    return (Number(minute) * 60) + Number(second)
+  }
+  function scaleCoord(length, scaleFactor, minHeight = 0) {
+    return Math.max(scaleFactor * length, minHeight)
+  }
+  function loadAnnotations(url) {
+    window.fetch(url)
+      .then(response => response.text())
+      .then(data => {
+        annotations = parseAnnotationData(data)
+        redrawAnnotations()
+      })
+      .catch(error => {
+        // FIXME: Hantera om filen inte laddar.
+      })
+  }
+  function parseAnnotationData(data) {
+    const [_forstaRaden, ...rader] = data.trim().split(/\n/)
+    return rader.map(rad => {
+      let [start, slut, langd, glosa] = rad.split(/\t/)
+      return {
+        start:  timeToSeconds(start),
+        end:    timeToSeconds(slut),
+        length: timeToSeconds(langd),
+        gloss:  glosa,
+      }
+    })
+  }
+  function redrawAnnotations() {
+    if (annotations.length === 0) { return [] }
+    const lastGloss = annotations[annotations.length - 1]
+    const annotHeight =  // videons längd = sista glosans start + längd
+      scaleCoord(lastGloss.start,  scaleFactor) +
+      scaleCoord(lastGloss.length, scaleFactor, minGlossHeight)
+
+    // Sätt höjden på annoteringsfältet.
+    $annot.css({ height: `${annotHeight}px` })   // jquery
+    // $annot.style.height = `${annotHeight}px`  // vanilj javascript
+
+    // Töm annoteringsfältet och placera ut nya glosor.
+    $annot.empty()  // jquery
+    for (const glosa of annotations) {
+      const { start, length, gloss } = glosa
+      const top    = scaleCoord(start,  scaleFactor)
+      const height = scaleCoord(length, scaleFactor, minGlossHeight)
+      $annot.append(`<div style="top:${top}px;height:${height}px">${gloss}`) // jquery
+    }
+  }
+  function rescale(newScale) {
+    const newScrollTop = ($annotWrap.scrollTop() / scaleFactor) * newScale
+    scaleFactor = newScale
+    redrawAnnotations()
+    $annotWrap.scrollTop(newScrollTop)
+    return scaleFactor
+  }
+  $(() => {  // när sidan laddat klart (jquery)
+    $('select[name="file"]').trigger('change') // ladda annotationen (jquery)
+    $('input[name="scale"]').trigger('input')  // uppdatera scale-värdet (jquery)
+  })
+</script>
