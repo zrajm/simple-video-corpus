@@ -9,6 +9,7 @@
   /* För formuläret. */
   form { margin: 1rem 0; }
   input[type="range"] { vertical-align: top; }
+  #player > button { padding: .5rem 1rem; }
 
   /* Sidlayout. */
   div[id^="wrap-"] {
@@ -59,6 +60,28 @@
         oninput="scaleOut.value = rescale(scale.value)">
       <output id=scaleOut for=scale></output>
     </form>
+    <div id=player>
+      <button onclick="seek()" title="Backwards to start">
+        <svg width="24" height="24">
+          <path fill="currentColor" d="M2.25 21h1.5V3h-1.5zm1.5-9 9 9V3Zm18 9-9-9 9-9Z"/>
+        </svg>
+      </button>
+      <button onclick="seek(-5)" title="Backwards 5 seconds">
+        <svg width="24" height="24">
+          <path fill="currentColor" d="m3 12 9 9V3Zm18 9-9-9 9-9Z"/>
+        </svg>
+      </button>
+      <button onclick="play()" title="Play/Pause">
+        <svg width="24" height="24">
+          <path fill="currentColor" d="m2 21 9-9-9-9zm13 0h-4V3h4Zm7 0h-4V3h4z"/>
+        </svg>
+      </button>
+      <button onclick="seek(+5)" title="Forwards 5 seconds">
+        <svg width="24" height="24">
+          <path fill="currentColor" d="m21 12-9 9V3ZM3 21l9-9-9-9Z"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div id=wrap-annot>
     <div id=annot></div>
@@ -69,9 +92,12 @@
   // Inställningar.
   let scaleFactor = 50
   const minGlossHeight = 24
+  const updateInterval = 13  // millisekunder
+  const wheelIdleTime = 300  // millisekunder
 
   // Data.
   let annotations = []
+  const updatesPerSecond = 1000 / updateInterval
   const $annotWrap = $('#wrap-annot')               // jquery
   const $annot = $('#annot')                        // jquery
   //const $annot = document.querySelector('#annot') // vanilj javascript
@@ -135,8 +161,39 @@
     $annotWrap.scrollTop(newScrollTop)
     return scaleFactor
   }
-  $(() => {  // när sidan laddat klart (jquery)
+  function seek(secs) {
+    const playing = !!play.timer
+    if (playing) { play() }
+    $annotWrap[0].scrollTop = secs
+      ? $annotWrap[0].scrollTop + (secs * scaleFactor)
+      : 0
+    if (playing) { play() }
+  }
+  function play() {
+    if (play.timer) {
+      play.timer = clearTimeout(play.timer)
+    } else {
+      let prevPos = $annotWrap[0].scrollTop
+      let floatPos = prevPos
+      play.timer = setInterval(() => {
+        if (play.pointer || play.wheel) {
+          prevPos = floatPos = $annotWrap[0].scrollTop
+        } else {
+          floatPos = floatPos + (scaleFactor / updatesPerSecond)
+          prevPos = $annotWrap[0].scrollTop = Math.round(floatPos)
+        }
+      }, updateInterval)
+    }
+  }
+  $(() => { // när sidan laddat klart (jquery)
     $('select[name="file"]').trigger('change') // ladda annotationen (jquery)
     $('input[name="scale"]').trigger('input')  // uppdatera scale-värdet (jquery)
+
+    // Håll reda på om musknapp eller -hjul är nedtryckt (pausar uppspelning).
+    $annotWrap.on('pointerup pointerdown', e => play.pointer = e.type !== 'pointerup')
+    $annotWrap.on('wheel', () => {
+      clearTimeout(play.wheel)
+      play.wheel = setTimeout(() => play.wheel = null, wheelIdleTime)
+    })
   })
 </script>
