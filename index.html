@@ -55,15 +55,15 @@
       ></video>
     <form>
       Video:
-      <select name=video onchange="loadVideo(video.value)">
+      <select onchange="loadVideo(value)">
         <option value="x/sslc01_003.tsv">SSLC01 003</option>
         <option value="x/sslc01_222.tsv">SSLC01 222</option>
       </select>
         Annotering:
-      <select name=file onchange="loadAnnotations(file.value)"></select>
+      <select name=file onchange="loadAnnotations(value)"></select>
       <br>Scale:
       <input name=scale type=range min=10 max=250 value=50
-        oninput="scaleOut.value = rescale(scale.value)">
+        oninput="scaleOut.value = rescale(value)">
       <output id=scaleOut for=scale></output>
     </form>
     <div id=player>
@@ -102,6 +102,8 @@
   const wheelIdleTime = 300       // milliseconds
 
   // Data.
+  let videos = []
+  let tiers = []
   let annotations = []
   let annotPointer     // pointer down
   let annotWheel       // scroll wheel active
@@ -123,8 +125,8 @@
     window.fetch(videoUrl)
       .then(response => response.text())
       .then(tsv => {                      // tab-separated values
-        const [videos, ...tiers] = parseTSV(tsv)
-        $('video').attr({ src: `${videoDir}/${videos[0]}` })
+        [videos, ...tiers] = parseTSV(tsv)
+        video.src = `${videoDir}/${videos[0]}`
         const html = tiers.map(([name, file, count]) => {
           return `<option value="${videoDir}/${file}">${name} (${count})\n`
         }).join('')
@@ -135,6 +137,7 @@
       })
   }
   function loadAnnotations(annotUrl) {
+    if (!annotUrl) { return }
     window.fetch(annotUrl)
       .then(response => response.text())
       .then(data => {
@@ -150,19 +153,16 @@
     redrawAnnotations()
   }
   function redrawAnnotations() {
-    if (annotations.length === 0) { return [] }
-
-    const annotHeight = scaleCoord(videoLength, scaleFactor) + minAnnotHeight
-    $annot.css({ height: `${annotHeight}px` })
-
-    // Clear annotation field and fill with new annotations.
-    $annot.empty()
-    for (const annot of annotations) {
-      const [ start, length, value ] = annot
-      const top    = scaleCoord(start,  scaleFactor)
-      const height = scaleCoord(length, scaleFactor, minAnnotHeight)
-      $annot.append(`<div style="top:${top}px;height:${height}px">${value}`)
-    }
+    // Set annotation height: Video length + min annotation length.
+    $annot.css({
+      height: `${scaleCoord(videoLength, scaleFactor) + minAnnotHeight}px`
+    })
+    $annot.html(
+      annotations.map(([start, length, value]) => {
+        const top    = scaleCoord(start,  scaleFactor)
+        const height = scaleCoord(length, scaleFactor, minAnnotHeight)
+        return `<div style="top:${top}px;height:${height}px">${value}</div>`
+      }).join(''))
   }
   function rescale(newScale) {
     const newScrollTop = ($annotWrap.scrollTop() / scaleFactor) * newScale
