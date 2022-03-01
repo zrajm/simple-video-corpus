@@ -8,8 +8,8 @@
   *, :before, :after { box-sizing: inherit; padding: 0; margin: 0; }
 
   /* För formuläret. */
-  form { margin: 1rem 0; }
-  input[type="range"] { vertical-align: top; }
+  form { margin: 1rem 0; line-height: 2rem; }
+  input[type="range"] { vertical-align: middle; }
   #player > button { padding: .5rem 1rem; }
 
   /* Sidlayout. */
@@ -49,13 +49,15 @@
 </style>
 <body>
   <div id=wrap-video>
-    <div style="background:#000;width:640px;height:400px;color:#fff">VIDEO</div>
+    <video width=576 height=432 controls></video>
     <form>
-      Annotering:
-      <select name=file onchange="loadAnnotations(file.value)">
-        <option value="gloss_lh.txt">Gloss LH</option>
-        <option value="gloss_rh.txt">Gloss RH</option>
+      Video:
+      <select name=video onchange="loadVideo(video.value)">
+        <option value="x/sslc01_003.tsv">SSLC01 003</option>
+        <option value="x/sslc01_222.tsv">SSLC01 222</option>
       </select>
+        Annotering:
+      <select name=file onchange="loadAnnotations(file.value)"></select>
       <br>Scale:
       <input name=scale type=range min=10 max=250 value=50
         oninput="scaleOut.value = rescale(scale.value)">
@@ -105,12 +107,27 @@
 
   // '$' först i variabelnamn = det är ett HTML-element
   // '_' först i variabelnamn = det är en variabel som inte används
-  function timeToSeconds(time) {
-    const [minute, second] = time.split(':')
-    return (Number(minute) * 60) + Number(second)
+  function parseTSV(data = '') {
+    return data.trim().split('\n').map(l => l.split('\t'))
   }
   function scaleCoord(length, scaleFactor, minHeight = 0) {
     return Math.max(scaleFactor * length, minHeight)
+  }
+  function loadVideo(videoUrl) {
+    const videoDir = videoUrl.replace(/\/[^\\]*$/, '')
+    window.fetch(videoUrl)
+      .then(response => response.text())
+      .then(tsv => {                      // tab separated values
+        const [videos, ...tiers] = parseTSV(tsv)
+        $('video').attr({ src: `${videoDir}/${videos[0]}` })
+        const html = tiers.map(([name, file, count]) => {
+          return `<option value="${videoDir}/${file}">${name} (${count})\n`
+        }).join('')
+        $('[name="file"]').html(html).trigger('change')
+      })
+      .catch(error => {
+        // FIXME: Hantera om filen inte laddar.
+      })
   }
   function loadAnnotations(url) {
     window.fetch(url)
@@ -126,11 +143,10 @@
   function parseAnnotationData(data) {
     const [_forstaRaden, ...rader] = data.trim().split(/\n/)
     return rader.map(rad => {
-      let [start, slut, langd, glosa] = rad.split(/\t/)
+      let [start, langd, glosa] = rad.split(/\t/)
       return {
-        start:  timeToSeconds(start),
-        end:    timeToSeconds(slut),
-        length: timeToSeconds(langd),
+        start:  start,
+        length: langd,
         gloss:  glosa,
       }
     })
@@ -187,8 +203,8 @@
     }
   }
   $(() => { // när sidan laddat klart (jquery)
-    $('select[name="file"]').trigger('change') // ladda annotationen (jquery)
-    $('input[name="scale"]').trigger('input')  // uppdatera scale-värdet (jquery)
+    $('select').trigger('change') // ladda annotationen (jquery)
+    $('[type="range"]').trigger('input')  // uppdatera scale-värdet (jquery)
 
     // Håll reda på om musknapp eller -hjul är nedtryckt (pausar uppspelning).
     $annotWrap.on('pointerup pointerdown', e => play.pointer = e.type !== 'pointerup')

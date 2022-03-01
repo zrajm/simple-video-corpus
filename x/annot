@@ -1,0 +1,97 @@
+#!/bin/perl
+#
+# First recompress/generate the video files you need (e.g. from the Swedish
+# Sign Language Corpus files) something along the lines of:
+#
+#   ffmpeg -i sslc01_003_s001_b.mpg -c:v libx264 -c:a copy sslc01_003_s001_b.mp4
+#
+# Now, generate the metadata needed by this simple-video-corpus project by
+# running the following (args for 'annot' command is './annot DIR VIDEO1...'
+# a bunch of .tsv files will be written to 'DIR/TIERNAME.tsv', and 'DIR.tsv').
+#
+# Video .tsv (tab-separated values) files with metadata were created using:
+#
+#   ./cheaf annot sslc01_003.eaf | ./annot sslc01_222 \
+#        sslc01_222_s023_b.mp4  sslc01_222_s024_b.mp4
+#
+use 5.30.0;
+use warnings;
+use strict;
+use utf8;
+use open ':locale';
+use bignum;
+
+my $USAGE = "Usage: ./cheaf annot EAFFILE | ./annot DIR VIDEO...\n";
+die $USAGE unless @ARGV;
+
+my $dir = shift(@ARGV);
+my @video = splice(@ARGV);
+my $metafile = "$dir.tsv";
+
+die "First argument must be name of destination dir for TSV files\n" . $USAGE
+    unless -d $dir;
+
+for (@video) {
+    die "Missing video file '$_'\n" . $USAGE unless -d $dir;
+}
+
+# Very simplistic. Expects time in [[HH:]MM:]SS[.DDD].
+sub secondify {
+    my ($str) = @_;
+    # Split on ':' (reverse to let leading elements be optional). Missing
+    # elements are assumed to be zero.
+    my ($secs, $mins, $hours) = reverse(0, 0, 0, split(':', $str));
+    return $hours * 3600 + $mins * 60 + $secs;
+}
+
+sub write_file {
+    my ($file, $text) = @_;
+    open(my $fh, '>', $file) or die "Cannot open file '$file' for writing\n";
+    print $fh $text;
+    close($fh) or die "Cannot close file '$file' after writing\n";
+}
+
+my %output;
+while (<>) {
+    chomp();
+    my ($start, $end, $tier, $gloss) = split("\t");
+    my $start_seconds  = secondify($start);
+    my $end_seconds    = secondify($end);
+    my $length_seconds = secondify($end) - $start_seconds;
+    $output{$tier} //= [];
+    push(
+        @{$output{$tier}},
+        join("\t", $start_seconds, $length_seconds, $gloss) . "\n",
+    );
+}
+
+# Filename lookup table: tiername -> filename
+my %filename = map {
+    (my $file = $_) =~ tr/åäöA-ZÅÄÖ /aaoa-zaao_/;
+    ($_, "$dir/$file.tsv");
+} keys(%output);
+
+# Create metadata file.
+#   * 1st line has one column per video file.
+#   * Subsequent lines have three columns each:
+#     + ELAN tier name
+#     + File name
+#     + Number of annotations in file
+my $metadata = join(
+    "\n",
+    join("\t", map { s#.*/##; $_ } @video),
+    sort map {
+        my $count = scalar(@{$output{$_}});
+        (my $filename = $filename{$_}) =~ s#.*/##;
+        join("\t", $_, "$dir/$filename", $count);
+    } keys(%output),
+) . "\n";
+
+write_file($metafile, $metadata);
+
+for my $tier (keys(%output)) {
+    my $data = join('', @{$output{$tier}});
+    write_file($filename{$tier}, $data);
+}
+
+#[eof]
