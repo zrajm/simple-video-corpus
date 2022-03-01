@@ -7,12 +7,12 @@
   html { box-sizing: border-box; }
   *, :before, :after { box-sizing: inherit; padding: 0; margin: 0; }
 
-  /* För formuläret. */
+  /* Form. */
   form { margin: 1rem 0; line-height: 2rem; }
   input[type="range"] { vertical-align: middle; }
   #player > button { padding: .5rem 1rem; }
 
-  /* Sidlayout. */
+  /* Page layout. */
   div[id^="wrap-"] {
     width: 50vw;
     height: 100vh;
@@ -24,14 +24,13 @@
   div#wrap-video { left: 0; }
   div#wrap-annot { right: 0; }
 
-  /* Annoteringsfältet. */
+  /* Annotation field. */
   #annot {
     position: relative;
     background: #ccf;
-    height: 100vh; /* höjden sätts oxå i javascript nedan */
+    height: 100vh; /* height is set by javascript below */
   }
-
-  /* Enskild glosa i annoteringsfältet. */
+  /* An annotation in the annotation field. */
   #annot > div {
     position: absolute;
     border-radius: 4px;
@@ -40,11 +39,10 @@
     padding: .125rem .25rem;
     cursor: pointer;
   }
-  /* Håll mus ovanför annotering för att få den att hamna överst. */
   #annot > div:hover {
     z-index: 1;
-    background: #aaf;        /* ljusare backgrunds */
-    border: 2px solid #0006; /* ljusare kant */
+    background: #aaf;        /* lighter background */
+    border: 2px solid #0006; /* lighter border */
   }
 </style>
 <body>
@@ -92,21 +90,18 @@
 </body>
 <script src="jquery-3.6.0.slim.min.js"></script>
 <script>
-  // Inställningar.
+  // Settings.
   let scaleFactor = 50
-  const minGlossHeight = 24
-  const updateInterval = 13  // millisekunder
-  const wheelIdleTime = 300  // millisekunder
+  const minAnnotHeight = 24
+  const annotUpdateInterval = 13  // milliseconds
+  const wheelIdleTime = 300       // milliseconds
 
   // Data.
   let annotations = []
-  const updatesPerSecond = 1000 / updateInterval
-  const $annotWrap = $('#wrap-annot')               // jquery
-  const $annot = $('#annot')                        // jquery
-  //const $annot = document.querySelector('#annot') // vanilj javascript
+  const updatesPerSecond = 1000 / annotUpdateInterval
+  const $annotWrap = $('#wrap-annot')
+  const $annot = $('#annot')
 
-  // '$' först i variabelnamn = det är ett HTML-element
-  // '_' först i variabelnamn = det är en variabel som inte används
   function parseTSV(data = '') {
     return data.trim().split('\n').map(l => l.split('\t'))
   }
@@ -117,7 +112,7 @@
     const videoDir = videoUrl.replace(/\/[^\\]*$/, '')
     window.fetch(videoUrl)
       .then(response => response.text())
-      .then(tsv => {                      // tab separated values
+      .then(tsv => {                      // tab-separated values
         const [videos, ...tiers] = parseTSV(tsv)
         $('video').attr({ src: `${videoDir}/${videos[0]}` })
         const html = tiers.map(([name, file, count]) => {
@@ -126,38 +121,35 @@
         $('[name="file"]').html(html).trigger('change')
       })
       .catch(error => {
-        // FIXME: Hantera om filen inte laddar.
+        // FIXME: Handle error in file loading here.
       })
   }
-  function loadAnnotations(url) {
-    window.fetch(url)
+  function loadAnnotations(annotUrl) {
+    window.fetch(annotUrl)
       .then(response => response.text())
       .then(data => {
         annotations = parseTSV(data)
         redrawAnnotations()
       })
       .catch(error => {
-        // FIXME: Hantera om filen inte laddar.
+        // FIXME: Handle error in file loading here.
       })
   }
   function redrawAnnotations() {
     if (annotations.length === 0) { return [] }
-    const lastGloss = annotations[annotations.length - 1]
-    const annotHeight =  // videons längd = sista glosans start + längd
-      scaleCoord(lastGloss[0], scaleFactor) +
-      scaleCoord(lastGloss[1], scaleFactor, minGlossHeight)
+    const lastAnnot = annotations[annotations.length - 1]
+    const annotHeight =  // video length = last annotation start + length
+      scaleCoord(lastAnnot[0], scaleFactor) +
+      scaleCoord(lastAnnot[1], scaleFactor, minAnnotHeight)
+    $annot.css({ height: `${annotHeight}px` })
 
-    // Sätt höjden på annoteringsfältet.
-    $annot.css({ height: `${annotHeight}px` })   // jquery
-    // $annot.style.height = `${annotHeight}px`  // vanilj javascript
-
-    // Töm annoteringsfältet och placera ut nya glosor.
-    $annot.empty()  // jquery
-    for (const glosa of annotations) {
-      const [ start, length, gloss ] = glosa
+    // Clear annotation field and fill with new annotations.
+    $annot.empty()
+    for (const annot of annotations) {
+      const [ start, length, value ] = annot
       const top    = scaleCoord(start,  scaleFactor)
-      const height = scaleCoord(length, scaleFactor, minGlossHeight)
-      $annot.append(`<div style="top:${top}px;height:${height}px">${gloss}`) // jquery
+      const height = scaleCoord(length, scaleFactor, minAnnotHeight)
+      $annot.append(`<div style="top:${top}px;height:${height}px">${value}`)
     }
   }
   function rescale(newScale) {
@@ -176,9 +168,9 @@
     if (playing) { play() }
   }
   function play() {
-    if (play.timer) {
+    if (play.timer) {  // pause
       play.timer = clearTimeout(play.timer)
-    } else {
+    } else {           // play
       let prevPos = $annotWrap[0].scrollTop
       let floatPos = prevPos
       play.timer = setInterval(() => {
@@ -188,14 +180,14 @@
           floatPos = floatPos + (scaleFactor / updatesPerSecond)
           prevPos = $annotWrap[0].scrollTop = Math.round(floatPos)
         }
-      }, updateInterval)
+      }, annotUpdateInterval)
     }
   }
-  $(() => { // när sidan laddat klart (jquery)
-    $('select').trigger('change') // ladda annotationen (jquery)
-    $('[type="range"]').trigger('input')  // uppdatera scale-värdet (jquery)
+  $(() => {
+    $('select').trigger('change')         // load annotations
+    $('[type="range"]').trigger('input')  // update scale value
 
-    // Håll reda på om musknapp eller -hjul är nedtryckt (pausar uppspelning).
+    // Keep track of mouse button or wheel status (for pausing playback).
     $annotWrap.on('pointerup pointerdown', e => play.pointer = e.type !== 'pointerup')
     $annotWrap.on('wheel', () => {
       clearTimeout(play.wheel)
