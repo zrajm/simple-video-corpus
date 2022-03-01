@@ -13,7 +13,7 @@
   #player > button { padding: .5rem 1rem; }
 
   /* Page layout. */
-  div[id^="wrap-"] {
+  div[id$="-pane"] {
     width: 50vw;
     height: 100vh;
     position: fixed;
@@ -21,8 +21,8 @@
     overflow: auto;
     padding: .75rem 1rem;
   }
-  div#wrap-video { left: 0; }
-  div#wrap-annot { right: 0; }
+  div#video-pane { left: 0; }
+  div#annot-pane { right: 0; }
 
   /* Annotation field. */
   #annot {
@@ -46,7 +46,7 @@
   }
 </style>
 <body>
-  <div id=wrap-video>
+  <div id=video-pane>
     <video
       width=576 height=432 controls
       onplay="playAnnot()"
@@ -89,7 +89,7 @@
       </button>
     </div>
   </div>
-  <div id=wrap-annot onclick="play()"><div id=annot></div></div>
+  <div id=annot-pane onclick="play()"><div id=annot></div></div>
 </body>
 <script src="jquery-3.6.0.slim.min.js"></script>
 <script>
@@ -109,7 +109,7 @@
   let videoLength = 0
   const updatesPerSecond = 1000 / annotUpdateInterval
   const video = $('video')[0]  // plain DOM element
-  const $annotWrap = $('#wrap-annot')
+  const $annotPane = $('#annot-pane')
   const $annot = $('#annot')
 
   function parseTSV(data = '') {
@@ -163,10 +163,10 @@
       }).join(''))
   }
   function rescale(newScale) {
-    const newScrollTop = ($annotWrap.scrollTop() / scaleFactor) * newScale
+    const newScrollTop = ($annotPane.scrollTop() / scaleFactor) * newScale
     scaleFactor = newScale
     redrawAnnotations()
-    $annotWrap.scrollTop(newScrollTop)
+    $annotPane.scrollTop(newScrollTop)
     return scaleFactor
   }
   function play() {
@@ -175,8 +175,8 @@
   function seek(secs) {
     const playing = !!annotTimer
     if (playing) { play() }
-    $annotWrap[0].scrollTop = secs
-      ? $annotWrap[0].scrollTop + (secs * scaleFactor)
+    $annotPane[0].scrollTop = secs
+      ? $annotPane[0].scrollTop + (secs * scaleFactor)
       : 0
     if (playing) { play() }
   }
@@ -184,14 +184,14 @@
     annotTimer = clearTimeout(annotTimer)
   }
   function playAnnot() {
-    let prevPos = $annotWrap[0].scrollTop
+    let prevPos = $annotPane[0].scrollTop
     let floatPos = prevPos
     annotTimer = setInterval(() => {
       if (annotPointer || annotWheel) {
-        prevPos = floatPos = $annotWrap[0].scrollTop
+        prevPos = floatPos = $annotPane[0].scrollTop
       } else {
         floatPos = floatPos + (scaleFactor / updatesPerSecond)
-        prevPos = $annotWrap[0].scrollTop = Math.round(floatPos)
+        prevPos = $annotPane[0].scrollTop = Math.round(floatPos)
       }
     }, annotUpdateInterval)
   }
@@ -200,10 +200,10 @@
     $('[type="range"]').trigger('input')  // update scale value
 
     // Mouse button/wheel status (pauses playback when scrolling annotations).
-    $annotWrap.on('pointerup pointerdown', e => {
+    $annotPane.on('pointerup pointerdown', e => {
       annotPointer = e.type !== 'pointerup'
     })
-    $annotWrap.on('wheel', () => {
+    $annotPane.on('wheel', () => {
       clearTimeout(annotWheel)
       annotWheel = setTimeout(() => { annotWheel = null }, wheelIdleTime)
     })
