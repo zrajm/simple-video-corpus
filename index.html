@@ -51,6 +51,7 @@
       width=576 height=432 controls
       onplay="playAnnot()"
       onpause="stopAnnot()"
+      ondurationchange="resizeAnnot(duration)"
       ></video>
     <form>
       Video:
@@ -105,6 +106,7 @@
   let annotPointer     // pointer down
   let annotWheel       // scroll wheel active
   let annotTimer
+  let videoLength = 0
   const updatesPerSecond = 1000 / annotUpdateInterval
   const video = $('video')[0]  // plain DOM element
   const $annotWrap = $('#wrap-annot')
@@ -143,12 +145,14 @@
         // FIXME: Handle error in file loading here.
       })
   }
+  function resizeAnnot(duration) {
+    videoLength = duration
+    redrawAnnotations()
+  }
   function redrawAnnotations() {
     if (annotations.length === 0) { return [] }
-    const lastAnnot = annotations[annotations.length - 1]
-    const annotHeight =  // video length = last annotation start + length
-      scaleCoord(lastAnnot[0], scaleFactor) +
-      scaleCoord(lastAnnot[1], scaleFactor, minAnnotHeight)
+
+    const annotHeight = scaleCoord(videoLength, scaleFactor) + minAnnotHeight
     $annot.css({ height: `${annotHeight}px` })
 
     // Clear annotation field and fill with new annotations.
