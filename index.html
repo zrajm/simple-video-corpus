@@ -47,7 +47,11 @@
 </style>
 <body>
   <div id=wrap-video>
-    <video width=576 height=432 controls></video>
+    <video
+      width=576 height=432 controls
+      onplay="playAnnot()"
+      onpause="stopAnnot()"
+      ></video>
     <form>
       Video:
       <select name=video onchange="loadVideo(video.value)">
@@ -98,7 +102,11 @@
 
   // Data.
   let annotations = []
+  let annotPointer     // pointer down
+  let annotWheel       // scroll wheel active
+  let annotTimer
   const updatesPerSecond = 1000 / annotUpdateInterval
+  const video = $('video')[0]  // plain DOM element
   const $annotWrap = $('#wrap-annot')
   const $annot = $('#annot')
 
@@ -159,39 +167,43 @@
     $annotWrap.scrollTop(newScrollTop)
     return scaleFactor
   }
+  function play() {
+    video[video.paused ? 'play' : 'pause']()
+  }
   function seek(secs) {
-    const playing = !!play.timer
+    const playing = !!annotTimer
     if (playing) { play() }
     $annotWrap[0].scrollTop = secs
       ? $annotWrap[0].scrollTop + (secs * scaleFactor)
       : 0
     if (playing) { play() }
   }
-  function play() {
-    if (play.timer) {  // pause
-      play.timer = clearTimeout(play.timer)
-    } else {           // play
-      let prevPos = $annotWrap[0].scrollTop
-      let floatPos = prevPos
-      play.timer = setInterval(() => {
-        if (play.pointer || play.wheel) {
-          prevPos = floatPos = $annotWrap[0].scrollTop
-        } else {
-          floatPos = floatPos + (scaleFactor / updatesPerSecond)
-          prevPos = $annotWrap[0].scrollTop = Math.round(floatPos)
-        }
-      }, annotUpdateInterval)
-    }
+  function stopAnnot() {
+    annotTimer = clearTimeout(annotTimer)
+  }
+  function playAnnot() {
+    let prevPos = $annotWrap[0].scrollTop
+    let floatPos = prevPos
+    annotTimer = setInterval(() => {
+      if (annotPointer || annotWheel) {
+        prevPos = floatPos = $annotWrap[0].scrollTop
+      } else {
+        floatPos = floatPos + (scaleFactor / updatesPerSecond)
+        prevPos = $annotWrap[0].scrollTop = Math.round(floatPos)
+      }
+    }, annotUpdateInterval)
   }
   $(() => {
     $('select').trigger('change')         // load annotations
     $('[type="range"]').trigger('input')  // update scale value
 
-    // Keep track of mouse button or wheel status (for pausing playback).
-    $annotWrap.on('pointerup pointerdown', e => play.pointer = e.type !== 'pointerup')
+    // Mouse button/wheel status (pauses playback when scrolling annotations).
+    $annotWrap.on('pointerup pointerdown', e => {
+      annotPointer = e.type !== 'pointerup'
+    })
     $annotWrap.on('wheel', () => {
-      clearTimeout(play.wheel)
-      play.wheel = setTimeout(() => play.wheel = null, wheelIdleTime)
+      clearTimeout(annotWheel)
+      annotWheel = setTimeout(() => { annotWheel = null }, wheelIdleTime)
     })
   })
 </script>
