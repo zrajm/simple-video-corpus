@@ -133,30 +133,19 @@
     window.fetch(url)
       .then(response => response.text())
       .then(data => {
-        annotations = parseAnnotationData(data)
+        annotations = parseTSV(data)
         redrawAnnotations()
       })
       .catch(error => {
         // FIXME: Hantera om filen inte laddar.
       })
   }
-  function parseAnnotationData(data) {
-    const [_forstaRaden, ...rader] = data.trim().split(/\n/)
-    return rader.map(rad => {
-      let [start, langd, glosa] = rad.split(/\t/)
-      return {
-        start:  start,
-        length: langd,
-        gloss:  glosa,
-      }
-    })
-  }
   function redrawAnnotations() {
     if (annotations.length === 0) { return [] }
     const lastGloss = annotations[annotations.length - 1]
     const annotHeight =  // videons längd = sista glosans start + längd
-      scaleCoord(lastGloss.start,  scaleFactor) +
-      scaleCoord(lastGloss.length, scaleFactor, minGlossHeight)
+      scaleCoord(lastGloss[0], scaleFactor) +
+      scaleCoord(lastGloss[1], scaleFactor, minGlossHeight)
 
     // Sätt höjden på annoteringsfältet.
     $annot.css({ height: `${annotHeight}px` })   // jquery
@@ -165,7 +154,7 @@
     // Töm annoteringsfältet och placera ut nya glosor.
     $annot.empty()  // jquery
     for (const glosa of annotations) {
-      const { start, length, gloss } = glosa
+      const [ start, length, gloss ] = glosa
       const top    = scaleCoord(start,  scaleFactor)
       const height = scaleCoord(length, scaleFactor, minGlossHeight)
       $annot.append(`<div style="top:${top}px;height:${height}px">${gloss}`) // jquery
