@@ -90,7 +90,8 @@
       </button>
     </div>
   </div>
-  <div id=annot-pane onclick="play()"><div id=annot></div></div>
+  <div id=annot-pane onclick="play()" onscroll="annotSeek(scrollTop)">
+    <div id=annot></div></div>
 </body>
 <script src="jquery-3.6.0.slim.min.js"></script>
 <script>
@@ -107,6 +108,7 @@
   let annotPointer     // pointer down
   let annotWheel       // scroll wheel active
   let annotTimer
+  let annotPlaying = false
   let videoLength = 0
   const video     = $('video')[0]        // plain DOM element
   const annotPane = $('#annot-pane')[0]  // plain DOM element
@@ -174,6 +176,11 @@
   function seek(secs) {
     video.currentTime = secs ? video.currentTime + secs : 0
   }
+  function annotSeek(scrollTop) {
+    if (!annotPlaying) {
+      video.currentTime = scrollTop / scaleFactor
+    }
+  }
   function stopAnnot() {
     annotTimer = clearTimeout(annotTimer)
   }
@@ -181,7 +188,9 @@
     annotTimer = setInterval(() => {
       if (annotPointer || annotWheel) {
         // User is scrolling in annotation pane. Do nada.
+        annotPlaying = false
       } else {
+        annotPlaying = true
         annotPane.scrollTop = scaleCoord(video.currentTime, scaleFactor)
       }
     }, annotUpdateInterval)
