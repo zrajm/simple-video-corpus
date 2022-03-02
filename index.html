@@ -85,6 +85,9 @@
           <option value="x/sslc01_222.tsv">SSLC01 222</option>
         </select>
       </div>
+      <div>Kamera<br>
+        <select id=view onchange="videoViewLoad(value)"></select>
+      </div>
       <div>Annotering<br>
         <select id=file onchange="annotLoad(value)"></select>
       </div>
@@ -147,6 +150,7 @@
   let annotPlaying = false
   let videoLength = 0
   const $fileSelector = $('#file')        // jQuery element
+  const $viewSelector = $('#view')        // jQuery element
   const $annot        = $('#annot')       // jQuery element
   const $annotPane    = $('#annot-pane')  // jQuery element
   const $annotCursor  = $('#cursor')      // jQuery element
@@ -166,14 +170,27 @@
         [videos, ...tiers] = parseTSV(tsv)
         video.src = `${videoDir}/${videos[0]}`
         $fileSelector.html(tiers.map(
-          ([name, file, count]) =>
-            `<option value="${videoDir}/${file}">${name} (${count})\n`
-          ).join(''))
+          ([name, file, count]) => {
+            return `<option value="${videoDir}/${file}">${name} (${count})\n`
+          }).join(''))
+          .trigger('change')
+        $viewSelector.html(videos.map(
+          (file) => {
+            name = file.replace(/.*(?=s\d+)/g, '').replace(/\.mp4$/, '').replace(/_+/g, ' ')
+            return `<option value="${videoDir}/${file}">${name}\n`
+          }).join(''))
           .trigger('change')
       })
       .catch(error => {
         // FIXME: Handle error in file loading here.
       })
+  }
+  function videoViewLoad(videoUrl) {
+    if (videoUrl) {
+      const pos = video.currentTime
+      video.onloadeddata = () => video.currentTime = pos
+      video.src = videoUrl
+    }
   }
   function videoPlay() {
     video[video.paused ? 'play' : 'pause']()
