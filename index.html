@@ -22,15 +22,28 @@
     padding: .75rem 1rem;
   }
   div#video-pane { left: 0; }
-  div#annot-pane { right: 0; }
+  div#annot-pane { right: 0; overflow-y: scroll; padding-top: 0; }
 
   /* Annotation field. */
   #annot {
     position: relative;
     background: #ccf;
-    height: 100vh; /* height is set by javascript below */
+    height: 0;        /* set by javascript */
+    margin-top: 0;    /* set by javascript */
+    margin-bottom: 0; /* set by javascript */
+  }
+  #cursor {
+    position: fixed;
+    color: #0000;
+    background: #0082;
+    border: 1px solid #0084;
+    border-width: 1px 0;
+    z-index: 2;
+    width: 0;  /* set by javascript */
+    top: 0;    /* set by javascript */
   }
   /* An annotation in the annotation field. */
+  #annotMinHeight,
   #annot > div {
     position: absolute;
     border-radius: 4px;
@@ -45,7 +58,7 @@
     border: 2px solid #0006; /* lighter border */
   }
 </style>
-<body onresize="annotSetPadding()">
+<body onresize="annotSetPaddingAndCursor()">
   <div id=video-pane>
     <video
       width=576 height=432 controls
@@ -94,6 +107,8 @@
     id=annot-pane
     onclick="videoPlay()"
     onscroll="videoSeekToAnnotPos(scrollTop)">
+    <div id=cursor>x</div>
+    <div id=annotMinHeight hidden>x</div><!-- used to calc annot height -->
     <div id=annot></div>
   </div>
 </body>
@@ -101,7 +116,7 @@
 <script>
   // Settings.
   let   annotScaleFactor = 50
-  const annotMinHeight = 24
+  let   annotCursorPosition = .25 // 0 = top, 1 = bottom
   const annotUpdateInterval = 13  // milliseconds
   const wheelIdleTime = 300       // milliseconds
 
@@ -109,6 +124,8 @@
   let videos = []
   let tiers = []
   let annotValues = []
+  let annotMinHeight
+  let annotCursorHeight
   let annotPointer     // pointer down
   let annotWheel       // scroll wheel active
   let annotTimer
@@ -117,6 +134,7 @@
   const $fileSelector = $('#file')        // jQuery element
   const $annot        = $('#annot')       // jQuery element
   const $annotPane    = $('#annot-pane')  // jQuery element
+  const $annotCursor  = $('#cursor')      // jQuery element
   const annotPane     = $annotPane[0]     // plain DOM element
   const video         = $('video')[0]     // plain DOM element
 
@@ -176,13 +194,26 @@
     // Duration = scaled video length. This plus annotSetPadding() is needed
     // for annotations to sync up with video.
     videoLength = duration
-    $annot.css({ height: `${annotScaledPos(videoLength)}px` })
+    $annot.css({
+      height: `${annotScaledPos(videoLength) + annotCursorHeight}px`,
+    })
   }
-  function annotSetPadding() {
+  function annotSetPaddingAndCursor() {
+    const cursorTop = ($annotPane.outerHeight() - annotCursorHeight)
+      * annotCursorPosition
     // Padding = containing elements inner width (w/o its padding). This plus
     // annotSetHeight() is needed for annotations to sync up with video.
-    const height = $annotPane.height()
-    $annot.css({ marginBottom: `${height}px` })
+    const paneHeightInner = $annotPane.height()
+    $annot.css({
+      marginTop: `${cursorTop}px`,
+      marginBottom: `${paneHeightInner - cursorTop - annotCursorHeight}px`,
+    })
+    // Place cursor on screen.
+    const cursorWidth  = $annot.outerWidth()  // set in CSS
+    $annotCursor.css({
+      top:   `${cursorTop}px`,
+      width: `${cursorWidth}px`,
+    })
   }
   function annotSetValues(annots) {
     annotValues = annots
@@ -215,6 +246,8 @@
     annotTimer = clearTimeout(annotTimer)
   }
   $(() => {
+    annotCursorHeight = $('#cursor').outerHeight()
+    annotMinHeight = $('#annotMinHeight').outerHeight()
     $('select').trigger('change')         // load annotations
     $('[type="range"]').trigger('input')  // update scale value
     $('body').trigger('resize')
