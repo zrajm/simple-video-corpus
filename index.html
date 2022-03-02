@@ -97,6 +97,12 @@
           oninput="scaleOut.value = annotRescale(value)">
         <output id=scaleOut for=scale></output>
       </div>
+      <div>Hastighet<br>
+        <input
+          id=speed type=range min=.25 max=2 value=1 step=.25
+          oninput="speedOut.value = videoSpeed(value)">
+        <output id=speedOut for=speed></output>
+      </div>
     </form>
     <div id=player>
       <button onclick="videoSeek()" title="Backwards to start">
@@ -202,6 +208,9 @@
     if (!annotPlaying) {
       video.currentTime = scrollTop / annotScaleFactor
     }
+  }
+  function videoSpeed(rate) {
+    return video.playbackRate = rate
   }
 
   /* Annotation functions. */
