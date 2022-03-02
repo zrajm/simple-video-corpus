@@ -8,9 +8,20 @@
   *, :before, :after { box-sizing: inherit; padding: 0; margin: 0; }
 
   /* Form. */
-  form { margin: 1rem 0; line-height: 2rem; }
+  form { margin: .5rem 0 0; line-height: 2rem; }
   input[type="range"] { vertical-align: middle; }
+  output {
+    display: inline-block;
+    width: 2.125em;
+    text-align: left;
+  }
   #player > button { padding: .5rem 1rem; }
+  form > div {
+    margin-bottom: .75rem;
+    display: inline-block;
+    line-height: 1.25rem;
+    text-align: center;
+  }
 
   /* Page layout. */
   div[id$="-pane"] {
@@ -68,17 +79,21 @@
       onseeking="annotSeek(currentTime)"
       ></video>
     <form>
-      Video:
-      <select onchange="videoLoad(value)">
-        <option value="x/sslc01_003.tsv">SSLC01 003</option>
-        <option value="x/sslc01_222.tsv">SSLC01 222</option>
-      </select>
-        Annotering:
-      <select id=file onchange="annotLoad(value)"></select>
-      <br>Scale:
-      <input id=scale type=range min=10 max=250 value=50
-        oninput="scaleOut.value = annotRescale(value)">
-      <output id=scaleOut for=scale></output>
+      <div>Scen<br>
+        <select onchange="videoLoad(value)">
+          <option value="x/sslc01_003.tsv">SSLC01 003</option>
+          <option value="x/sslc01_222.tsv">SSLC01 222</option>
+        </select>
+      </div>
+      <div>Annotering<br>
+        <select id=file onchange="annotLoad(value)"></select>
+      </div>
+      <div>Zoom<br>
+        <input
+          id=scale type=range min=10 max=250 value=50
+          oninput="scaleOut.value = annotRescale(value)">
+        <output id=scaleOut for=scale></output>
+      </div>
     </form>
     <div id=player>
       <button onclick="videoSeek()" title="Backwards to start">
