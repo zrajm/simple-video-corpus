@@ -45,161 +45,174 @@
     border: 2px solid #0006; /* lighter border */
   }
 </style>
-<body onresize="annotResizeMargin()">
+<body onresize="annotSetPadding()">
   <div id=video-pane>
     <video
       width=576 height=432 controls
-      onplay="playAnnot()"
-      onpause="stopAnnot()"
-      ondurationchange="resizeAnnot(duration)"
-      onseeking="updateAnnot(currentTime)"
+      onplay="annotPlay()"
+      onpause="annotStop()"
+      ondurationchange="annotSetHeight(duration)"
+      onseeking="annotSeek(currentTime)"
       ></video>
     <form>
       Video:
-      <select onchange="loadVideo(value)">
+      <select onchange="videoLoad(value)">
         <option value="x/sslc01_003.tsv">SSLC01 003</option>
         <option value="x/sslc01_222.tsv">SSLC01 222</option>
       </select>
         Annotering:
-      <select name=file onchange="loadAnnotations(value)"></select>
+      <select id=file onchange="annotLoad(value)"></select>
       <br>Scale:
-      <input name=scale type=range min=10 max=250 value=50
-        oninput="scaleOut.value = rescale(value)">
+      <input id=scale type=range min=10 max=250 value=50
+        oninput="scaleOut.value = annotRescale(value)">
       <output id=scaleOut for=scale></output>
     </form>
     <div id=player>
-      <button onclick="seek()" title="Backwards to start">
+      <button onclick="videoSeek()" title="Backwards to start">
         <svg width="24" height="24">
           <path fill="currentColor" d="M2.25 21h1.5V3h-1.5zm1.5-9 9 9V3Zm18 9-9-9 9-9Z"/>
         </svg>
       </button>
-      <button onclick="seek(-5)" title="Backwards 5 seconds">
+      <button onclick="videoSeek(-5)" title="Backwards 5 seconds">
         <svg width="24" height="24">
           <path fill="currentColor" d="m3 12 9 9V3Zm18 9-9-9 9-9Z"/>
         </svg>
       </button>
-      <button onclick="play()" title="Play/Pause">
+      <button onclick="videoPlay()" title="Play/Pause">
         <svg width="24" height="24">
           <path fill="currentColor" d="m2 21 9-9-9-9zm13 0h-4V3h4Zm7 0h-4V3h4z"/>
         </svg>
       </button>
-      <button onclick="seek(+5)" title="Forwards 5 seconds">
+      <button onclick="videoSeek(+5)" title="Forwards 5 seconds">
         <svg width="24" height="24">
           <path fill="currentColor" d="m21 12-9 9V3ZM3 21l9-9-9-9Z"/>
         </svg>
       </button>
     </div>
   </div>
-  <div id=annot-pane onclick="play()" onscroll="annotSeek(scrollTop)">
-    <div id=annot></div></div>
+  <div
+    id=annot-pane
+    onclick="videoPlay()"
+    onscroll="videoSeekToAnnotPos(scrollTop)">
+    <div id=annot></div>
+  </div>
 </body>
 <script src="jquery-3.6.0.slim.min.js"></script>
 <script>
   // Settings.
-  let scaleFactor = 50
-  const minAnnotHeight = 24
+  let   annotScaleFactor = 50
+  const annotMinHeight = 24
   const annotUpdateInterval = 13  // milliseconds
   const wheelIdleTime = 300       // milliseconds
 
   // Data.
   let videos = []
   let tiers = []
-  let annotations = []
+  let annotValues = []
   let annotPointer     // pointer down
   let annotWheel       // scroll wheel active
   let annotTimer
   let annotPlaying = false
   let videoLength = 0
-  const video     = $('video')[0]        // plain DOM element
-  const annotPane = $('#annot-pane')[0]  // plain DOM element
-  const $annot    = $('#annot')          // jQuery element
+  const $fileSelector = $('#file')        // jQuery element
+  const $annot        = $('#annot')       // jQuery element
+  const $annotPane    = $('#annot-pane')  // jQuery element
+  const annotPane     = $annotPane[0]     // plain DOM element
+  const video         = $('video')[0]     // plain DOM element
 
   function parseTSV(data = '') {
     return data.trim().split('\n').map(l => l.split('\t'))
   }
-  function scaleCoord(length, scaleFactor, minHeight = 0) {
-    return Math.max(scaleFactor * length, minHeight)
-  }
-  function loadVideo(videoUrl) {
+
+  /* Annotation functions. */
+  function videoLoad(videoUrl) {
     const videoDir = videoUrl.replace(/\/[^\\]*$/, '')
     window.fetch(videoUrl)
       .then(response => response.text())
       .then(tsv => {                      // tab-separated values
         [videos, ...tiers] = parseTSV(tsv)
         video.src = `${videoDir}/${videos[0]}`
-        const html = tiers.map(([name, file, count]) => {
-          return `<option value="${videoDir}/${file}">${name} (${count})\n`
-        }).join('')
-        $('[name="file"]').html(html).trigger('change')
+        $fileSelector.html(tiers.map(
+          ([name, file, count]) =>
+            `<option value="${videoDir}/${file}">${name} (${count})\n`
+          ).join(''))
+          .trigger('change')
       })
       .catch(error => {
         // FIXME: Handle error in file loading here.
       })
   }
-  function loadAnnotations(annotUrl) {
+  function videoPlay() {
+    video[video.paused ? 'play' : 'pause']()
+  }
+  function videoSeek(secs) {
+    video.currentTime = secs ? video.currentTime + secs : 0
+  }
+  function videoSeekToAnnotPos(scrollTop) {
+    if (!annotPlaying) {
+      video.currentTime = scrollTop / annotScaleFactor
+    }
+  }
+
+  /* Annotation functions. */
+  function annotLoad(annotUrl) {
     if (!annotUrl) { return }
     window.fetch(annotUrl)
       .then(response => response.text())
       .then(data => {
-        annotations = parseTSV(data)
-        redrawAnnotations()
+        annotSetValues(parseTSV(data))
       })
       .catch(error => {
         // FIXME: Handle error in file loading here.
       })
   }
-  function resizeAnnot(duration) {
-    videoLength = duration
-    redrawAnnotations()
+  function annotScaledPos(length, minHeight = 0) {
+    return Math.max(annotScaleFactor * length, minHeight)
   }
-  function annotResizeMargin() {
-    const height = $("#annot-pane").height()
+  function annotSeek(secs) {
+    annotPane.scrollTop = annotScaledPos(secs)
+  }
+  function annotSetHeight(duration) {
+    // Duration = scaled video length. This plus annotSetPadding() is needed
+    // for annotations to sync up with video.
+    videoLength = duration
+    $annot.css({ height: `${annotScaledPos(videoLength)}px` })
+  }
+  function annotSetPadding() {
+    // Padding = containing elements inner width (w/o its padding). This plus
+    // annotSetHeight() is needed for annotations to sync up with video.
+    const height = $annotPane.height()
     $annot.css({ marginBottom: `${height}px` })
   }
-  function redrawAnnotations() {
-    // Annotation height = Video length. Margins are also added by
-    // annotResizeMargin().
-    $annot.css({ height: `${scaleCoord(videoLength, scaleFactor)}px` })
-    $annot.html(
-      annotations.map(([start, length, value]) => {
-        const top    = scaleCoord(start,  scaleFactor)
-        const height = scaleCoord(length, scaleFactor, minAnnotHeight)
+  function annotSetValues(annots) {
+    annotValues = annots
+    $annot.html(annotValues.map(
+      ([start, length, value]) => {
+        const top    = annotScaledPos(start)
+        const height = annotScaledPos(length, annotMinHeight)
         return `<div style="top:${top}px;height:${height}px">${value}</div>`
       }).join(''))
   }
-  function rescale(newScale) {
-    scaleFactor = newScale
-    redrawAnnotations()
-    annotPane.scrollTop = scaleCoord(video.currentTime, scaleFactor)
-    return scaleFactor
+  function annotRescale(newScale) {
+    annotScaleFactor = newScale
+    annotSetValues(annotValues)
+    annotSetHeight(videoLength)
+    annotPane.scrollTop = annotScaledPos(video.currentTime)
+    return annotScaleFactor
   }
-  function play() {
-    video[video.paused ? 'play' : 'pause']()
-  }
-  function seek(secs) {
-    video.currentTime = secs ? video.currentTime + secs : 0
-  }
-  function annotSeek(scrollTop) {
-    if (!annotPlaying) {
-      video.currentTime = scrollTop / scaleFactor
-    }
-  }
-  function stopAnnot() {
-    annotTimer = clearTimeout(annotTimer)
-  }
-  function playAnnot() {
+  function annotPlay() {
     annotTimer = setInterval(() => {
       if (annotPointer || annotWheel) {
         // User is scrolling in annotation pane. Do nada.
         annotPlaying = false
       } else {
         annotPlaying = true
-        annotPane.scrollTop = scaleCoord(video.currentTime, scaleFactor)
+        annotPane.scrollTop = annotScaledPos(video.currentTime)
       }
     }, annotUpdateInterval)
   }
-  function updateAnnot(secs) {
-    annotPane.scrollTop = scaleCoord(secs, scaleFactor)
+  function annotStop() {
+    annotTimer = clearTimeout(annotTimer)
   }
   $(() => {
     $('select').trigger('change')         // load annotations
@@ -207,7 +220,7 @@
     $('body').trigger('resize')
 
     // Mouse button/wheel status (pauses playback when scrolling annotations).
-    $(annotPane).on('pointerup pointerdown', e => {
+    $annotPane.on('pointerup pointerdown', e => {
       annotPointer = e.type !== 'pointerup'
     }).on('wheel', () => {
       clearTimeout(annotWheel)
