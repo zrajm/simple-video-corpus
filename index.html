@@ -45,7 +45,7 @@
     border: 2px solid #0006; /* lighter border */
   }
 </style>
-<body>
+<body onresize="annotResizeMargin()">
   <div id=video-pane>
     <video
       width=576 height=432 controls
@@ -152,11 +152,14 @@
     videoLength = duration
     redrawAnnotations()
   }
+  function annotResizeMargin() {
+    const height = $("#annot-pane").height()
+    $annot.css({ marginBottom: `${height}px` })
+  }
   function redrawAnnotations() {
-    // Set annotation height: Video length + min annotation length.
-    $annot.css({
-      height: `${scaleCoord(videoLength, scaleFactor) + minAnnotHeight}px`
-    })
+    // Annotation height = Video length. Margins are also added by
+    // annotResizeMargin().
+    $annot.css({ height: `${scaleCoord(videoLength, scaleFactor)}px` })
     $annot.html(
       annotations.map(([start, length, value]) => {
         const top    = scaleCoord(start,  scaleFactor)
@@ -201,6 +204,7 @@
   $(() => {
     $('select').trigger('change')         // load annotations
     $('[type="range"]').trigger('input')  // update scale value
+    $('body').trigger('resize')
 
     // Mouse button/wheel status (pauses playback when scrolling annotations).
     $(annotPane).on('pointerup pointerdown', e => {
