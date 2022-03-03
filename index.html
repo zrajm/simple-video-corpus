@@ -115,9 +115,19 @@
           <path fill="currentColor" d="m3 12 9 9V3Zm18 9-9-9 9-9Z"/>
         </svg>
       </button>
+      <button onclick="videoSeek(-.04)" title="Backward one frame">
+        <svg height="24" width="24">
+          <path fill="currentColor" d="m2 12 14 9V3Zm19 9h-3V3h3z"/>
+        </svg>
+      </button>
       <button onclick="videoPlay()" title="Play/Pause">
         <svg width="24" height="24">
           <path fill="currentColor" d="m2 21 9-9-9-9zm13 0h-4V3h4Zm7 0h-4V3h4z"/>
+        </svg>
+      </button>
+      <button onclick="videoSeek(+.04)" title="Forward one frame">
+        <svg height="24" width="24">
+          <path fill="currentColor" d="M22 12 8 21V3ZM3 21h3V3H3Z"/>
         </svg>
       </button>
       <button onclick="videoSeek(+5)" title="Forwards 5 seconds">
