@@ -270,15 +270,22 @@
     annotSetValues(annotValues)
     annotSetHeight(videoLength)
     annotPane.scrollTop = annotScaledPos(video.currentTime)
-    const height = annotScaledPos(5)  // 5 seconds
-    $annot.css({ backgroundImage: `url('data:image/svg+xml,\
-      <svg xmlns="http://www.w3.org/2000/svg" width="250" height="${height}">\
-        <path d="M0,${height * .0}.5h250" stroke="%2300f" stroke-opacity=".5"/>\
-        <path d="M0,${height * .2}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
-        <path d="M0,${height * .4}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
-        <path d="M0,${height * .6}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
-        <path d="M0,${height * .8}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
-      </svg>')` })
+    // Using alternating dark/bright lines for seconds is a workaround, since
+    // single-pixel lines disappear at some zoom levels with linear-gradient().
+    // Therefore SVG are used for those below, but since those load slowly when
+    // zooming they're used only sparingly.
+    const hSec = annotScaledPos(1)  // annot heigt of one second
+    $annot.css({
+      backgroundSize: `auto ${hSec * 2}px, auto ${hSec * 60}px, auto ${hSec * 5}px`,
+      backgroundPositionY: '0, 0, 0',
+      backgroundImage: `linear-gradient(#2201, #2201 50%, #0000 50%, #0000),
+        url('data:image/svg+xml,\
+          <svg xmlns="http://www.w3.org/2000/svg" width="250" height="${hSec * 60}">\
+            <path d="M0,.5h250" stroke="%23000"/></svg>'),
+        url('data:image/svg+xml,\
+          <svg xmlns="http://www.w3.org/2000/svg" width="250" height="${hSec * 5}">\
+            <path d="M0,.5h250" stroke="%2366f"/></svg>')`,
+    })
     return annotScaleFactor
   }
   function annotPlay() {
