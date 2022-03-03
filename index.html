@@ -270,6 +270,15 @@
     annotSetValues(annotValues)
     annotSetHeight(videoLength)
     annotPane.scrollTop = annotScaledPos(video.currentTime)
+    const height = annotScaledPos(5)  // 5 seconds
+    $annot.css({ backgroundImage: `url('data:image/svg+xml,\
+      <svg xmlns="http://www.w3.org/2000/svg" width="250" height="${height}">\
+        <path d="M0,${height * .0}.5h250" stroke="%2300f" stroke-opacity=".5"/>\
+        <path d="M0,${height * .2}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
+        <path d="M0,${height * .4}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
+        <path d="M0,${height * .6}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
+        <path d="M0,${height * .8}.5h250" stroke="%2300f" stroke-opacity=".25"/>\
+      </svg>')` })
     return annotScaleFactor
   }
   function annotPlay() {
