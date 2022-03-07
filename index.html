@@ -269,11 +269,16 @@
   }
   function annotSetValues(annots) {
     annotValues = annots
+    function timestr(secs) {
+      return (new Date(secs * 1000)).toISOString().split(/[TZ](?:00:)?/)[1]
+    }
     $annot.html(annotValues.map(
       ([start, length, value]) => {
         const top    = annotScaledPos(start)
         const height = annotScaledPos(length, annotMinHeight)
-        return `<div style="top:${top}px;height:${height}px">${value}</div>`
+        return `<div
+          title="${timestr(start)} start\n${timestr(length)} längd"
+          style="top:${top}px;height:${height}px">${value}</div>`
       }).join(''))
   }
   function annotRescale(newScale) {
