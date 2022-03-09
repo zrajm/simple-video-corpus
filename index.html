@@ -87,16 +87,13 @@
       ></video>
     <form>
       <div>Scen<br>
-        <select onchange="videoLoad(value)">
-          <option value="x/sslc01_003.tsv">SSLC01 003</option>
-          <option value="x/sslc01_222.tsv">SSLC01 222</option>
-        </select>
+        <select id=scene onchange="eafLoad(value)"></select>
       </div>
       <div>Kamera<br>
-        <select id=view onchange="videoViewLoad(value)"></select>
+        <select id=view onchange="videoSwitch(value)"></select>
       </div>
       <div>Annotering<br>
-        <select id=file onchange="annotLoad(value)"></select>
+        <select id=tier onchange="annotSwitch(value)"></select>
       </div>
       <div>Zoom<br>
         <input
@@ -155,6 +152,22 @@
 </body>
 <script src="jquery-3.6.0.slim.min.js"></script>
 <script>
+  const mainData = {
+    'x/sslc01_003.eaf': {
+      name: 'SSLC01 003',
+      vids: {
+        'x/sslc01_003_s001_b.mp4': 'S1 B',
+        'x/sslc01_003_s002_b.mp4': 'S2 B',
+      },
+    },
+    'x/sslc01_222.eaf': {
+      name: 'SSLC01 222',
+      vids: {
+        'x/sslc01_222_s023_b.mp4': 'S23 B',
+        'x/sslc01_222_s024_b.mp4': 'S24 B',
+      },
+    },
+  }
   // Settings.
   let   annotScaleFactor = 50
   let   annotCursorPosition = .25 // 0 = top, 1 = bottom
@@ -162,8 +175,7 @@
   const wheelIdleTime = 300       // milliseconds
 
   // Data.
-  let videos = []
-  let tiers = []
+  let eafData = {}
   let annotValues = []
   let annotMinHeight
   let annotCursorHeight
@@ -172,43 +184,76 @@
   let annotTimer
   let annotPlaying = false
   let videoLength = 0
-  const $fileSelector = $('#file')        // jQuery element
   const $viewSelector = $('#view')        // jQuery element
+  const $tierSelector = $('#tier')        // jQuery element
   const $annot        = $('#annot')       // jQuery element
   const $annotPane    = $('#annot-pane')  // jQuery element
   const $annotCursor  = $('#cursor')      // jQuery element
   const annotPane     = $annotPane[0]     // plain DOM element
   const video         = $('video')[0]     // plain DOM element
 
-  function parseTSV(data = '') {
-    return data.trim().split('\n').map(l => l.split('\t'))
+  // jQuery plugins.
+  $.fn.reduce = [].reduce
+  $.fn.options = function(obj, cb) {
+    this.html(Object.entries(obj).map(cb).join('')).trigger('change')
   }
 
-  /* Annotation functions. */
-  function videoLoad(videoUrl) {
-    const videoDir = videoUrl.replace(/\/[^\\]*$/, '')
-    window.fetch(videoUrl)
+  // Returns: { tier: [[begMs, endMs, annot], ...], ... }
+  function eafParse(data = '') {
+    const $eaf = (   // insert EAF data into DOM tree
+      $e => $e.length ? $e : $('<div id=eaf hidden>').appendTo('body')
+    )($('div#eaf')).html(data)
+
+    // Read <time_slot> tags (used for <alignable_annotation>).
+    const timeSlots = $eaf.find('time_slot').reduce(
+      (a, e) => Object.assign(a, {  // time in milliseconds
+        [e.getAttribute('time_slot_id')]: Number(e.getAttribute('time_value')),
+      }), {})
+
+    // Read <alignable_annotation> tags (used for <ref_annotation>).
+    const timeRefs = $eaf.find('alignable_annotation').reduce(
+      (a, e) => Object.assign(a, {
+        [e.getAttribute('annotation_id')]: [
+          timeSlots[e.getAttribute('time_slot_ref1')],
+          timeSlots[e.getAttribute('time_slot_ref2')],
+        ],
+      }), {})
+
+    // Get annotations.
+    const annots = $eaf.find('tier').reduce(
+      (a, tier) => Object.assign(a, {
+        [tier.getAttribute('tier_id')]:
+          $(tier).find('alignable_annotation, ref_annotation').reduce(
+            (a, e) => [...a, [
+              ...(e.tagName === 'REF_ANNOTATION' ? timeRefs[
+                e.getAttribute('annotation_ref')
+              ] : [
+                timeSlots[e.getAttribute('time_slot_ref1')],
+                timeSlots[e.getAttribute('time_slot_ref2')],
+              ]),
+              e.firstElementChild.textContent,
+            ]], [])
+      }), {})
+    $eaf.html('')
+    return annots
+  }
+  function eafLoad(eafUrl) {
+    $viewSelector.options(
+      mainData[eafUrl].vids,
+      ([k, v]) => `<option value="${k}">${v}`)
+    window.fetch(eafUrl)
       .then(response => response.text())
-      .then(tsv => {                      // tab-separated values
-        [videos, ...tiers] = parseTSV(tsv)
-        video.src = `${videoDir}/${videos[0]}`
-        $fileSelector.html(tiers.map(
-          ([name, file, count]) => {
-            return `<option value="${videoDir}/${file}">${name} (${count})\n`
-          }).join(''))
-          .trigger('change')
-        $viewSelector.html(videos.map(
-          (file) => {
-            name = file.replace(/.*(?=s\d+)/g, '').replace(/\.mp4$/, '').replace(/_+/g, ' ')
-            return `<option value="${videoDir}/${file}">${name}\n`
-          }).join(''))
-          .trigger('change')
+      .then(xml => {            // ELAN annotation file
+        eafData = eafParse(xml)
+        $tierSelector.options(
+          eafData,
+          ([k, v]) => `<option value="${k}">${k} (${v.length})`)
       })
       .catch(error => {
         // FIXME: Handle error in file loading here.
       })
   }
-  function videoViewLoad(videoUrl) {
+  function videoSwitch(videoUrl) {
     if (videoUrl) {
       const pos = video.currentTime
       video.onloadeddata = () => video.currentTime = pos
@@ -229,18 +274,9 @@
   function videoSpeed(rate) {
     return video.playbackRate = rate
   }
-
   /* Annotation functions. */
-  function annotLoad(annotUrl) {
-    if (!annotUrl) { return }
-    window.fetch(annotUrl)
-      .then(response => response.text())
-      .then(data => {
-        annotSetValues(parseTSV(data))
-      })
-      .catch(error => {
-        // FIXME: Handle error in file loading here.
-      })
+  function annotSwitch(tierName) {
+    annotSetValues(eafData[tierName])
   }
   function annotScaledPos(length, minHeight = 0) {
     return Math.max(annotScaleFactor * length, minHeight)
@@ -275,13 +311,14 @@
   }
   function annotSetValues(annots) {
     annotValues = annots
-    function timestr(secs) {
-      return (new Date(secs * 1000)).toISOString().split(/[TZ](?:00:)?/)[1]
+    function timestr(ms) {
+      return (new Date(ms)).toISOString().split(/[TZ](?:00:)?/)[1]
     }
     $annot.html(annotValues.map(
-      ([start, length, value]) => {
-        const top    = annotScaledPos(start)
-        const height = annotScaledPos(length, annotMinHeight)
+      ([start, end, value]) => {
+        const length = end - start
+        const top    = annotScaledPos(start  / 1000)
+        const height = annotScaledPos(length / 1000, annotMinHeight)
         return `<div
           title="${timestr(start)} start\n${timestr(length)} längd"
           style="top:${top}px;height:${height}px">${value}</div>`
@@ -296,7 +333,7 @@
     // single-pixel lines disappear at some zoom levels with linear-gradient().
     // Therefore SVG are used for those below, but since those load slowly when
     // zooming they're used only sparingly.
-    const hSec = annotScaledPos(1)  // annot heigt of one second
+    const hSec = annotScaledPos(1)  // annot height of one second
     $annot.css({
       backgroundSize: `auto ${hSec * 2}px, auto ${hSec * 60}px, auto ${hSec * 5}px`,
       backgroundPositionY: '0, 0, 0',
@@ -325,9 +362,9 @@
     annotTimer = clearTimeout(annotTimer)
   }
   $(() => {
+    $('#scene').options(mainData, ([k, v]) => `<option value="${k}">${v.name}`)
     annotCursorHeight = $('#cursor').outerHeight()
     annotMinHeight = $('#annotMinHeight').outerHeight()
-    $('select').trigger('change')         // load annotations
     $('[type="range"]').trigger('input')  // update scale value
     $('body').trigger('resize')
 
